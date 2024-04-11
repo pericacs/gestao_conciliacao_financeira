@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar Dados do Arquivo</title>
+</head>
+
+<body>
+    <h1>Importar Dados do Arquivo</h1>
+    <input type="file" id="fileInput">
+    <button onclick="handleFile()">Listar Dados</button>
+    <ul id="dataList"></ul>
+    <button onclick="importData()">Importar Dados</button>
+
+    <script>
+        let csvFilePath = ''; // Variável para armazenar o caminho do arquivo CSV
+        let jsonFilePath = ''; // Variável para armazenar o caminho do arquivo JSON
+
+        function handleFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const dataList = document.getElementById('dataList');
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    const contents = event.target.result;
+                    const lines = contents.split('\n');
+
+                    dataList.innerHTML = ''; // Limpa a lista antes de adicionar novos itens
+
+                    lines.forEach(function (line) {
+                        // Cria um item de lista para cada linha do arquivo
+                        const listItem = document.createElement('li');
+                        listItem.textContent = line;
+                        dataList.appendChild(listItem);
+                    });
+                };
+                reader.readAsText(file);
+                csvFilePath = file.name; // Salva o nome do arquivo CSV
+            } else {
+                dataList.innerHTML = '<li>Nenhum arquivo selecionado.</li>';
+            }
+        }
+
+        function importData() {
+            if (csvFilePath) {
+                // Chama a função Python para importar os dados
+                // Substitua 'path_to_python_script' pelo caminho para o seu script Python
+                const pythonScriptPath = 'path_to_python_script';
+                fetch(pythonScriptPath + '?csvFilePath=' + csvFilePath + '&jsonFilePath=' + jsonFilePath)
+                    .then(response => response.json())
+                    .then(data => console.log(data))
+                    .catch(error => console.error('Erro ao importar dados:', error));
+            } else {
+                console.error('Nenhum arquivo CSV selecionado.');
+            }
+        }
+    </script>
+</body>
+
+</html>
