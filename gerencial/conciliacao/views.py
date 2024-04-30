@@ -1,32 +1,99 @@
 from django.shortcuts import render
-import psycopg2
-import json
-import csv
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from unidecode import unidecode
-from os import write
 from datetime import datetime
 from dotenv import load_dotenv
+from .forms import CarregarCSVForm
+import psycopg2
 import os
 import pandas as pd
 import json
-from unidecode import unidecode 
-from .forms import CarregarCSVForm
 
 
+@csrf_exempt
 def carregar_csv(request):
     if request.method == 'POST':
         form = CarregarCSVForm(request.POST, request.FILES)
         if form.is_valid():
-            # Processar o arquivo CSV aqui
+           # Salvar o arquivo temporariamente em disco            
+            # csv_file = request.FILES['arquivo_csv']
             arquivo_csv = form.cleaned_data['arquivo_csv']
-            # Faça o que for necessário com o arquivo
+            pasta_destino = "C:\\Estudo\\gestao_conciliacao_financeira\\arquivo"
+            if not os.path.exists(pasta_destino):
+                os.makedirs(pasta_destino)
+            caminho_arquivo = os.path.join(pasta_destino, arquivo_csv.name)                
+            with open(caminho_arquivo, 'wb+') as destino:
+                for chunk in arquivo_csv.chunks():
+                    destino.write(chunk)
+            jsonFilePath = excel_to_json_francesinha(caminho_arquivo)
+            importar_json_francesinha(jsonFilePath)
+            # Faça o que for necessário com o arquivo            
+            return JsonResponse({'message': 'Arquivo processado com sucesso', 'jsonFilePath': jsonFilePath})
+        else:
+            return JsonResponse({'error': 'Formulário inválido'}, status=400)
     else:
         form = CarregarCSVForm()
-    return render(request, 'conciliacao/pages/carregar_csv.html', {'form': form})
+        return render(request, 'conciliacao/pages/carregar_csv.html', {'form': form})
+    
+def converter_valor_monetario_francesinha(valor_string):
+     # Remover todos os pontos de milhar
+    valor_string = valor_string.replace('.', '')    
+    # Remover o símbolo 'R$' e substituir ',' por '.' 
+    valor_string = valor_string.replace('R$', '').replace(',', '.')
+    
+    # Remover todos os espaços em branco antes de tentar converter para float
+    valor_string = valor_string.strip().replace(' ', '')
+
+    valor_string = valor_string.replace('%', '')
+    
+    # Se o valor estiver vazio, retornar zero
+    if valor_string == '':
+        return 0.0
+    
+    # Se o valor contiver apenas um sinal de negativo, retornar zero
+    if valor_string == '-':
+        return 0.0
+    
+    # Se não for vazio, converter para float
+    valor_float = float(valor_string)
+    
+    return valor_float
+   
+
+def excel_to_json_francesinha(csvFilePath):
+    if os.path.exists(csvFilePath):
+        jsonArray = []
+
+         # Carregar o arquivo Excel
+        df = pd.read_csv(csvFilePath, skiprows=0, delimiter=';', encoding='latin1')  # Começa a ler a partir da 5ª linha
+
+        # Converter o DataFrame para uma lista de dicionários
+        data = df.to_dict(orient='records')
+
+        # Converter caracteres acentuados para ASCII
+        data = [{unidecode(str(key)): unidecode(str(value)) for key, value in row.items()} for row in data]
+
+        # Adicionar os dicionários à lista jsonArray
+        jsonArray.extend(data)
+
+        # Converter o jsonArray para uma string JSON e escrever no arquivo
+        jsonFilePath = csvFilePath.replace('.csv', '.json')
+        with open(jsonFilePath, 'w', encoding='utf-8') as jsonf:
+            jsonString = json.dumps(jsonArray, indent=4)
+            jsonf.write(jsonString)
+        
+        # Retornar o nome do arquivo gerado
+        return os.path.basename(jsonFilePath)
+    else:
+        return "Arquivo CSV não encontrado"        
 
 # Create your views here.
 def importar_json_francesinha(jsonFilePath):
-# Carregar variáveis de ambiente do arquivo .env
+    # carregar arquivo cvs, converter para json 
+    # jsonFilePath = excel_to_json_francesinha(csvFilePath)
+
+    # Carregar variáveis de ambiente do arquivo .env
     load_dotenv()
 
     # Acessar as variáveis de ambiente
@@ -47,6 +114,7 @@ def importar_json_francesinha(jsonFilePath):
 
     data_atual = datetime.now()
     data_formatada = data_atual.strftime("%m/%d/%Y %H:%M:%S")
+    
     # Dados JSON
     with open(jsonFilePath) as file:
         data = json.load(file)
@@ -82,26 +150,7 @@ def importar_json_francesinha(jsonFilePath):
             dt_bx_operacional = None
         else:
             dt_bx_operacional = datetime.strptime(row['DATA BX. OPERACIONAL'], "%d/%m/%Y").date()   
-                
-        # try:
-        #     if row['Data de pagamento']:
-        #         dt_pagamento = datetime.strptime(row['Data de pagamento'], "%d/%m/%Y").date()
-        #     else:
-        #         dt_pagamento = None
-
-        #     if row['Data do lancamento']:
-        #         dt_lancamento = datetime.strptime(row['Data do lancamento'], "%d/%m/%Y").date()
-        #     else:
-        #         dt_lancamento = None
-
-        #     if row['Data da autorizacao da venda']:
-        #         dt_autorizacao_venda = datetime.strptime(row['Data da autorizacao da venda'], "%d/%m/%Y").date()
-        #     else:
-        #         dt_autorizacao_venda = None
-        # except ValueError:
-        #     dt_pagamento = None
-        #     dt_lancamento = None
-        #     dt_autorizacao_venda = None
+ 
         # Converte os valores monetários para o formato numeric(10,2)
         row['VALOR TITULO'] = converter_valor_monetario_francesinha(row['VALOR TITULO'])
         row['VALOR DESCONTO'] = converter_valor_monetario_francesinha(row['VALOR DESCONTO'])
@@ -188,72 +237,3 @@ def importar_json_francesinha(jsonFilePath):
     conn.close()
 
 
-def converter_valor_monetario_francesinha(valor_string):
-     # Remover todos os pontos de milhar
-    valor_string = valor_string.replace('.', '')    
-    # Remover o símbolo 'R$' e substituir ',' por '.' 
-    valor_string = valor_string.replace('R$', '').replace(',', '.')
-    
-    # Remover todos os espaços em branco antes de tentar converter para float
-    valor_string = valor_string.strip().replace(' ', '')
-
-    valor_string = valor_string.replace('%', '')
-    
-    # Se o valor estiver vazio, retornar zero
-    if valor_string == '':
-        return 0.0
-    
-    # Se o valor contiver apenas um sinal de negativo, retornar zero
-    if valor_string == '-':
-        return 0.0
-    
-    # Se não for vazio, converter para float
-    valor_float = float(valor_string)
-    
-    return valor_float
-    
-
-def csv_to_json_francesinha(csvFilePath, jsonFilePath):
-    jsonArray = []
-      
-    #read csv file
-    with open(csvFilePath, encoding='utf-8-sig') as csvf: 
-        #load csv file data using csv library's dictionary reader
-        csvReader = csv.DictReader(csvf, delimiter=';') 
-# Converter os dados para uma lista de dicionários
-        data = list(csvReader)
-
-
-        #convert each csv row into python dict
-        for row in data: 
-            row = {unidecode(key): unidecode(value) for key, value in row.items()}
-
-            #add this python dict to json array
-            jsonArray.append(row)
-  
-    #convert python jsonArray to JSON String and write to file
-    with open(jsonFilePath, 'w', encoding='utf-8') as jsonf: 
-        jsonString = json.dumps(jsonArray, indent=4)
-        jsonf.write(jsonString)
-
-
-
-def excel_to_json_francesinha(csvFilePath, jsonFilePath):
-    jsonArray = []
-
-    # Carregar o arquivo Excel
-    df = pd.read_csv(csvFilePath, skiprows=1, delimiter=';')  # Começa a ler a partir da 5ª linha
-
-    # Converter o DataFrame para uma lista de dicionários
-    data = df.to_dict(orient='records')
-
-    # Converter caracteres acentuados para ASCII
-    data = [{unidecode(str(key)): unidecode(str(value)) for key, value in row.items()} for row in data]
-
-    # Adicionar os dicionários à lista jsonArray
-    jsonArray.extend(data)
-
-    # Converter o jsonArray para uma string JSON e escrever no arquivo
-    with open(jsonFilePath, 'w', encoding='utf-8') as jsonf:
-        jsonString = json.dumps(jsonArray, indent=4)
-        jsonf.write(jsonString)

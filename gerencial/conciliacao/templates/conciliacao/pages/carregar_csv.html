@@ -1,64 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Importar Dados do Arquivo</title>
+    <title>Verificar Tamanho e Linhas do Arquivo</title>
 </head>
-
 <body>
-    <h1>Importar Dados do Arquivo</h1>
+    <h1>Verificar Tamanho e Linhas do Arquivo</h1>
     <input type="file" id="fileInput">
-    <button onclick="handleFile()">Listar Dados</button>
+    <button onclick="handleFile()">Verificar</button>
+    <button onclick="handleFileClean()">Limpar dados Dados</button>
+    <button id="processarBtn">Processar Arquivo</button>
+    <div id="result"></div>    
     <ul id="dataList"></ul>
-    <button onclick="importData()">Importar Dados</button>
+    <button onclick="handleFileView()">Visualizar Dados</button>
+    <table id="dataTable">
+        <thead>
+            <tr id="headerRow"></tr>
+        </thead>
+        <tbody id="dataBody"></tbody>
+    </table>    
 
     <script>
-        let csvFilePath = ''; // Variável para armazenar o caminho do arquivo CSV
-        let jsonFilePath = ''; // Variável para armazenar o caminho do arquivo JSON
-
         function handleFile() {
+            // Obtém o elemento de entrada de arquivo
+            const fileInput = document.getElementById('fileInput');
+            // Obtém o arquivo selecionado
+            const file = fileInput.files[0];
+            
+            if (file) {
+                // Verifica o tamanho do arquivo
+                const fileSize = file.size;
+                const result = document.getElementById('result');
+                result.innerHTML = `<p>Tamanho do arquivo: ${fileSize} bytes</p>`;
+                
+                // Lê o conteúdo do arquivo
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const contents = event.target.result;
+                    // Divide o conteúdo do arquivo em linhas
+                    const lines = contents.split('\n');
+                    // Calcula a quantidade de linhas
+                    const lineCount = lines.length;
+                    result.innerHTML += `<p>Quantidade de linhas: ${lineCount}</p>`;
+                };
+                reader.readAsText(file);
+            } else {
+                result.innerHTML = '<p>Nenhum arquivo selecionado.</p>';
+            }
+        }
+        let csvFilePath = ''; // Variável para armazenar o caminho do arquivo CSV
+        function handleFileView() {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            const dataList = document.getElementById('dataList');
-
+            const headerRow = document.getElementById('headerRow');
+            const dataBody = document.getElementById('dataBody');
+        
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function (event) {
                     const contents = event.target.result;
                     const lines = contents.split('\n');
-
-                    dataList.innerHTML = ''; // Limpa a lista antes de adicionar novos itens
-
-                    lines.forEach(function (line) {
-                        // Cria um item de lista para cada linha do arquivo
-                        const listItem = document.createElement('li');
-                        listItem.textContent = line;
-                        dataList.appendChild(listItem);
+        
+                    headerRow.innerHTML = ''; // Limpa a linha de cabeçalho antes de adicionar novos itens
+                    dataBody.innerHTML = ''; // Limpa o corpo da tabela antes de adicionar novos dados
+        
+                    // Assume que a primeira linha do arquivo CSV contém os cabeçalhos
+                    const headers = lines[0].split(';');
+        
+                    headers.forEach(function (header) {
+                        // Cria um cabeçalho de coluna para cada cabeçalho encontrado
+                        const th = document.createElement('th');
+                        th.textContent = cleanString(header); // Limpa o cabeçalho
+                        headerRow.appendChild(th);
                     });
+        
+                    // Itera sobre as linhas do arquivo, excluindo a primeira (cabeçalho)
+                    for (let i = 1; i < lines.length; i++) {
+                        const rowData = lines[i].split(';');
+        
+                        // Cria uma nova linha na tabela para cada linha de dados
+                        const row = document.createElement('tr');
+        
+                        rowData.forEach(function (cellData) {
+                            // Cria uma célula na linha para cada dado de célula
+                            const td = document.createElement('td');
+                            td.textContent = cleanString(cellData); // Limpa os dados da célula
+                            row.appendChild(td);
+                        });
+        
+                        dataBody.appendChild(row);
+                    }
                 };
-                reader.readAsText(file);
-                csvFilePath = file.name; // Salva o nome do arquivo CSV
+                reader.readAsText(file, 'ISO-8859-1'); // Especifique a codificação
             } else {
-                dataList.innerHTML = '<li>Nenhum arquivo selecionado.</li>';
+                // Se nenhum arquivo selecionado, limpa a tabela
+                headerRow.innerHTML = '';
+                dataBody.innerHTML = '<tr><td colspan="100%">Nenhum arquivo selecionado.</td></tr>';
             }
         }
+        
+        // Função para limpar strings de caracteres especiais
+        function cleanString(str) {
+            // Substitui caracteres especiais por uma string vazia
+            return str.replace(/[^\w\s]/gi, '');
+        }
+        
 
-        function importData() {
-            if (csvFilePath) {
-                // Chama a função Python para importar os dados
-                // Substitua 'path_to_python_script' pelo caminho para o seu script Python
-                const pythonScriptPath = 'path_to_python_script';
-                fetch(pythonScriptPath + '?csvFilePath=' + csvFilePath + '&jsonFilePath=' + jsonFilePath)
-                    .then(response => response.json())
-                    .then(data => console.log(data))
-                    .catch(error => console.error('Erro ao importar dados:', error));
-            } else {
-                console.error('Nenhum arquivo CSV selecionado.');
-            }
+        function handleFileClean() {            
+            const headerRow = document.getElementById('headerRow');
+            const dataBody = document.getElementById('dataBody');
+            const result = document.getElementById('result');
+                        
+            // Limpa o conteúdo das linhas da tabela
+            headerRow.innerHTML = '';
+            dataBody.innerHTML = '';  
+            result.innerHTML = '';            
         }
+        document.getElementById('processarBtn').addEventListener('click', function() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                const formData = new FormData();
+                formData.append('arquivo_csv', file);
+        
+                // Obter o token CSRF do cookie
+                const csrftoken = getCookie('csrftoken');
+        
+                fetch('/carregar_csv/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrftoken  // Adicionar o token CSRF ao cabeçalho
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message); // Exibe a mensagem de retorno da view
+                })
+                .catch(error => {
+                    console.error('Erro ao processar o arquivo:', error);
+                });
+            } else {
+                console.error('Nenhum arquivo selecionado');
+            }
+        });
+        
+        // Função para obter o valor do cookie pelo nome
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Se o cookie começar com o nome especificado, retorna o valor
+                    if (cookie.startsWith(name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
     </script>
 </body>
-
 </html>
+

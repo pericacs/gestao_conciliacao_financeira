@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    {% include "dashboard/partials/_head.html" %}
+    <title>{% block title %}{% endblock title %} Fitech</title>
+</head>
+<body>       
+    {% include "dashboard/partials/_header.html" %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <!-- Main Content -->
+        <div id="content">
+            <main >                
+                {% block content  %}                    
+                {% endblock content  %}
+                {% comment %} {% include "dashboard/partials/_pagination.html" %} {% endcomment %}
+            </main>    
+            
+        </div>
+    </div>
+    {% include "dashboard/partials/_footer.html" %}    
+</body>
+</html>
